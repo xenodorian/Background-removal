@@ -138,16 +138,19 @@ details summary { cursor: pointer; font-weight: 600; }
 .fcell .checker { min-height: 0; padding: 4px; }
 .fcell small { color: var(--muted); font-size: .78rem; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .fcell button { min-height: 28px; padding: 2px 8px; font-size: .8rem; }
+.pv { margin-bottom: 10px; }
+.pv .checker img { max-width: 100%; height: auto; image-rendering: pixelated; display: block; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
 <body>
 <main>
   <h1>Cutout Compare</h1>
-  <p class="sub">Drop in one or more images that each have a one-colour background. Two methods remove the background from each and give you a transparent PNG. Animated images are split into every one of their frames in the output, and the colours you choose apply to all of them. For every image, pick the result you like and download it. Nothing leaves your device.</p>
+  <p class="sub">Drop in one or more images that each have a one-colour background. Two methods remove the background from each and give you a transparent PNG. Animated images are split into every one of their frames in the output, and the colours you choose apply to all of them. An animated GIF or WebP is then compiled back into an animated GIF or WebP, with its original timing and looping. For every image, pick the result you like and download it. Nothing leaves your device.</p>
 
   <div id="drop" tabindex="0" role="button" aria-label="Choose images or drop them here">
     <strong>Choose images, drop them here, or paste one</strong>
-    <span>PNG, GIF, WebP or JPEG. You can pick several at once. An animated GIF is split into all of its frames.</span>
+    <span>PNG, GIF, WebP or JPEG. You can pick several at once. Animated GIFs and WebPs come back as animated GIFs and WebPs.</span>
     <input id="file" type="file" accept="image/*" multiple class="hide">
   </div>
   <div class="row between">
@@ -202,23 +205,26 @@ details summary { cursor: pointer; font-weight: 600; }
         <div class="card cardA">
           <h3>A. Exact colour match</h3>
           <p class="note">From the spriteedge tool. Removes every pixel that matches a chosen colour, including backdrop pockets enclosed by the character (a tail curl, the gap between legs).</p>
+          <div class="pv pvA hide"><p class="note pvLabelA" style="margin-bottom:4px"></p><div class="checker"><img class="pvImgA" alt="Compiled animation, result A"></div></div>
           <div class="outA"></div>
           <p class="stat statA"></p>
           <label class="pick"><input type="radio" class="prefA" value="A"> I prefer this one</label>
-          <button class="dlA" type="button">Download A (PNG)</button>
+          <div class="btnrow"><button class="dlA" type="button">Download A (PNG)</button><button class="dlAz hide" type="button">Download A frames (ZIP)</button></div>
         </div>
         <div class="card cardB">
           <h3>B. Edge flood fill</h3>
           <p class="note">From the earlier one-off script. Starts at the image edges and spreads inward through backdrop-like pixels, so pockets the edge cannot reach stay.</p>
+          <div class="pv pvB hide"><p class="note pvLabelB" style="margin-bottom:4px"></p><div class="checker"><img class="pvImgB" alt="Compiled animation, result B"></div></div>
           <div class="outB"></div>
           <p class="stat statB"></p>
           <label class="pick"><input type="radio" class="prefB" value="B"> I prefer this one</label>
-          <button class="dlB" type="button">Download B (PNG)</button>
+          <div class="btnrow"><button class="dlB" type="button">Download B (PNG)</button><button class="dlBz hide" type="button">Download B frames (ZIP)</button></div>
         </div>
       </div>
 
       <div class="row">
         <button class="dlPick primary" type="button" disabled>Download my preferred one</button>
+        <button class="dlPickZ hide" type="button" disabled>Download preferred frames (ZIP)</button>
         <span class="note pickNote">Choose A or B first.</span>
       </div>
     </div>
@@ -267,7 +273,8 @@ function decodeGif(buf) {
   if (flags & 0x80) { const n = 2 << (flags & 7); gct = d.subarray(p, p + 3 * n); p += 3 * n; }
   const limit = frameLimit(W, H);
   const frames = [];
-  let total = 0, gce = null, last = null, saved = null;
+  let total = 0, gce = null, last = null, saved = null, loops = 0;
+  const delays = [];
   const canvas = new Uint8ClampedArray(W * H * 4);
   const skipBlocks = () => { while (d[p]) p += d[p] + 1; p++; };
   while (p < d.length) {
@@ -275,7 +282,13 @@ function decodeGif(buf) {
     if (b === 0x3b) break;
     if (b === 0x21) {
       const label = d[p++];
-      if (label === 0xf9) { const f = d[p + 1]; gce = { disposal: (f >> 2) & 7, trans: (f & 1) ? d[p + 4] : -1 }; }
+      if (label === 0xf9) {
+        const f = d[p + 1];
+        gce = { disposal: (f >> 2) & 7, trans: (f & 1) ? d[p + 4] : -1, delay: (d[p + 2] | (d[p + 3] << 8)) * 10 };
+      } else if (label === 0xff && d[p] === 11 && String.fromCharCode(...d.subarray(p + 1, p + 12)) === "NETSCAPE2.0") {
+        const q = p + 12;                                  // sub-block: 03 01 lo hi
+        if (d[q] === 3 && d[q + 1] === 1) { const n = d[q + 2] | (d[q + 3] << 8); loops = n === 0 ? Infinity : n; }
+      }
       skipBlocks();
     } else if (b === 0x2c) {
       const x0 = d[p] | (d[p + 1] << 8), y0 = d[p + 2] | (d[p + 3] << 8);
@@ -315,12 +328,13 @@ function decodeGif(buf) {
           canvas[q] = ct[ci * 3]; canvas[q + 1] = ct[ci * 3 + 1]; canvas[q + 2] = ct[ci * 3 + 2]; canvas[q + 3] = 255;
         }
       }
+      delays.push(gce ? gce.delay : 100);
       frames.push(new ImageData(canvas.slice(), W, H));
       last = { disposal, x: x0, y: y0, w, h };
       gce = null;
     } else break;
   }
-  return { frames, total };
+  return { frames, total, delays, loops };
 }
 
 function lzwDecode(data, minCode, npix) {
@@ -359,8 +373,9 @@ async function looksAnimated(file) {
 }
 
 async function decodeFrames(file) {
-  const out = { frames: null, capped: 0, note: "" };
+  const out = { frames: null, capped: 0, note: "", delays: [], loops: 0, fmt: null };
   const type = file.type || "";
+  out.fmt = type === "image/gif" || /\.gif$/i.test(file.name || "") ? "gif" : type === "image/webp" || /\.webp$/i.test(file.name || "") ? "webp" : null;
   const hasDecoder = typeof ImageDecoder !== "undefined" && !/[?&]decoder=off/.test(location.search);
   if (hasDecoder && /^image\/(gif|webp|png|avif|apng)$/.test(type)) {
     try {
@@ -379,8 +394,11 @@ async function decodeFrames(file) {
             ctx.clearRect(0, 0, w, h);
             ctx.drawImage(image, 0, 0);
             frames.push(ctx.getImageData(0, 0, w, h));
+            out.delays.push(Math.max(0, Math.round((image.duration || 100000) / 1000)));
             image.close();
           }
+          const rc = dec.tracks.selectedTrack.repetitionCount;
+          out.loops = rc === Infinity ? Infinity : rc > 0 ? rc : 0;
           dec.close();
           out.frames = frames;
           out.capped = total > frames.length ? total : 0;
@@ -393,7 +411,7 @@ async function decodeFrames(file) {
   if (type === "image/gif" || /\.gif$/i.test(file.name || "")) {
     try {
       const g = decodeGif(await file.arrayBuffer());
-      if (g.frames.length > 1) { out.frames = g.frames; out.capped = g.total > g.frames.length ? g.total : 0; return out; }
+      if (g.frames.length > 1) { out.frames = g.frames; out.delays = g.delays; out.loops = g.loops; out.capped = g.total > g.frames.length ? g.total : 0; return out; }
     } catch (e) { /* treat as a still image below */ }
   }
   out.frames = [await decode(file)];
@@ -586,7 +604,7 @@ let jobSeq = 0;
 function newJob(file) {
   const node = $("#jobTpl").content.firstElementChild.cloneNode(true);
   const job = {
-    id: ++jobSeq, file, node, img: null, frames: null, run: 0, colors: [], choice: null, results: null, timer: 0,
+    id: ++jobSeq, file, node, img: null, frames: null, run: 0, delays: [], loops: 0, fmt: null, compiled: null, urls: [], compileNote: "", colors: [], choice: null, results: null, timer: 0,
     hasAlpha: false, noFlat: false, removed: false,
     name: (file.name || "image").replace(/\.[^.]+$/, "") || "image",
   };
@@ -600,7 +618,10 @@ function newJob(file) {
   job.q(".prefB").addEventListener("change", () => { job.choice = "B"; updateChoice(job); });
   job.q(".dlA").addEventListener("click", () => download(job, "A"));
   job.q(".dlB").addEventListener("click", () => download(job, "B"));
+  job.q(".dlAz").addEventListener("click", () => downloadFrames(job, "A"));
+  job.q(".dlBz").addEventListener("click", () => downloadFrames(job, "B"));
   job.q(".dlPick").addEventListener("click", () => job.choice && download(job, job.choice));
+  job.q(".dlPickZ").addEventListener("click", () => job.choice && downloadFrames(job, job.choice));
   job.q(".jorig").addEventListener("click", (e) => addColorFromClick(job, e));
   jobs.add(job);
   jobsEl.append(node);
@@ -668,6 +689,7 @@ function updateChoice(job) {
   job.q(".cardA").classList.toggle("chosen", c === "A");
   job.q(".cardB").classList.toggle("chosen", c === "B");
   job.q(".dlPick").disabled = !c;
+  job.q(".dlPickZ").disabled = !c;
   job.q(".pickNote").textContent = c ? `You picked ${c === "A" ? "A, exact colour match" : "B, edge flood fill"}.` : "Choose A or B first.";
 }
 
@@ -737,12 +759,14 @@ async function processJob(job) {
     : `Removed ${Math.round(arr[0] * n0).toLocaleString()} pixels (${pct(arr[0])}). Kept ${(n0 - Math.round(arr[0] * n0)).toLocaleString()}.`;
   job.q(".statA").textContent = stat(fa);
   job.q(".statB").textContent = stat(fb);
-  job.q(".dlA").textContent = many ? "Download A frames (ZIP)" : "Download A (PNG)";
-  job.q(".dlB").textContent = many ? "Download B frames (ZIP)" : "Download B (PNG)";
-  job.q(".dlPick").textContent = many ? "Download my preferred one (ZIP)" : "Download my preferred one";
-  const warn = job.noFlat || !!job.capNote;
+  if (many && job.fmt) {
+    await compileJob(job, run);
+    if (job.removed || job.run !== run) return;
+  } else await compileJob(job, run);
+  updateButtons(job);
+  const warn = job.noFlat || !!job.capNote || !!job.compileNote;
   jstatus(job, `Done. ${img0.width} x ${img0.height} pixels` + (many ? `, ${frames.length} frames` : "") + "." +
-    (job.noFlat ? " Check the results closely." : ""), warn);
+    (job.noFlat ? " Check the results closely." : "") + (job.compileNote ? " " + job.compileNote : ""), warn);
 }
 
 async function loadJob(job) {
@@ -752,6 +776,7 @@ async function loadJob(job) {
     const dec = await decodeFrames(job.file);
     if (job.removed) return;
     job.frames = dec.frames;
+    job.delays = dec.delays; job.loops = dec.loops; job.fmt = dec.fmt;
     const img = job.img = dec.frames[0];
     const many = dec.frames.length > 1;
     if (img.width * img.height > 36e6) jstatus(job, "Large image: this may take a few seconds.", true);
@@ -776,7 +801,8 @@ async function loadJob(job) {
         : job.hasAlpha
           ? "This image already has a transparent background, so there is nothing to remove. If it also has a colour backdrop, click the picture to choose that colour."
           : "No flat background colour was found. Click the picture to choose the background colour.";
-    if (many) mode += ` This animation has ${dec.frames.length} frames. Colours are detected from the first frame and applied to every frame.`;
+    if (many) mode += ` This animation has ${dec.frames.length} frames. Colours are detected from the first frame and applied to every frame.` +
+      (dec.fmt ? ` The processed frames are compiled back into an animated ${dec.fmt.toUpperCase()}, keeping the original frame timing and looping.` : " This format cannot be compiled back, so the frames come as a ZIP.");
     if (job.capNote) mode += " " + job.capNote;
     if (dec.note) mode += " " + dec.note;
     job.q(".jmode").textContent = mode;
@@ -791,8 +817,219 @@ async function loadJob(job) {
   }
 }
 
+/* ------------------------------------------------------------------ compiling back to GIF or WebP
+   GIF: written by hand. Every frame is a full picture, so each one uses "restore to background" and
+   a transparent colour index, which keeps old frames from showing through. If all frames together use
+   255 colours or fewer, one global colour table is used and nothing changes. Otherwise each frame gets
+   its own table, which is still exact as long as a single frame has 255 colours or fewer. Only a frame
+   with more than that has its rarest colours merged into the nearest kept one (reported as lossy).
+   WebP: each frame is encoded losslessly by the browser, checked for an exact round trip, and the
+   frames are then wrapped in an animated WebP container (RIFF, VP8X, ANIM, ANMF) written here. */
+function lzwEncode(idx, minCode) {
+  const clear = 1 << minCode, eoi = clear + 1, mask = clear - 1;
+  let next = eoi + 1, size = minCode + 1, cur = 0, shift = 0, table = new Map();
+  const bytes = [];
+  const emit = (c) => {
+    cur |= c << shift; shift += size;
+    while (shift >= 8) { bytes.push(cur & 255); cur >>>= 8; shift -= 8; }
+  };
+  emit(clear);
+  let ib = idx[0] & mask;
+  for (let i = 1; i < idx.length; i++) {
+    const k = idx[i] & mask, key = (ib << 8) | k, hit = table.get(key);
+    if (hit === undefined) {
+      emit(ib);
+      if (next === 4096) { emit(clear); next = eoi + 1; size = minCode + 1; table = new Map(); }
+      else { if (next >= (1 << size)) size++; table.set(key, next++); }
+      ib = k;
+    } else ib = hit;
+  }
+  emit(ib); emit(eoi);
+  if (shift > 0) bytes.push(cur & 255);
+  const out = [minCode];
+  for (let i = 0; i < bytes.length; i += 255) {
+    const n = Math.min(255, bytes.length - i);
+    out.push(n);
+    for (let j = 0; j < n; j++) out.push(bytes[i + j]);
+  }
+  out.push(0);
+  return Uint8Array.from(out);
+}
+
+async function encodeGif(frames, delays, loops, onFrame) {
+  const W = frames[0].width, H = frames[0].height;
+  const counts = frames.map((fr) => {
+    const m = new Map(), d = fr.data;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] >= 128) { const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; m.set(k, (m.get(k) || 0) + 1); }
+    return m;
+  });
+  const all = new Map();
+  for (const m of counts) for (const [k, c] of m) all.set(k, (all.get(k) || 0) + c);
+  let lossy = false;
+  const pick = (m) => {
+    let keys = [...m.keys()];
+    if (keys.length > 255) { lossy = true; keys = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 255).map((e) => e[0]); }
+    return keys;
+  };
+  const bitsFor = (n) => Math.max(2, Math.ceil(Math.log2(n + 1)));      // +1: index 0 is transparent
+  const table = (keys, bits) => {
+    const t = new Uint8Array(3 << bits);
+    keys.forEach((k, j) => { t[(j + 1) * 3] = (k >> 16) & 255; t[(j + 1) * 3 + 1] = (k >> 8) & 255; t[(j + 1) * 3 + 2] = k & 255; });
+    return t;
+  };
+  const global = all.size <= 255 ? pick(all) : null;
+  const gBits = global ? bitsFor(global.length) : 0;
+  const parts = [];
+  const head = [..."GIF89a"].map((c) => c.charCodeAt(0));
+  head.push(W & 255, W >> 8, H & 255, H >> 8, global ? 0x80 | 0x70 | (gBits - 1) : 0x70, 0, 0);
+  parts.push(Uint8Array.from(head));
+  if (global) parts.push(table(global, gBits));
+  if (loops !== 0) {
+    const n = loops === Infinity ? 0 : Math.min(65535, loops);
+    parts.push(Uint8Array.from([0x21, 0xff, 11, ..."NETSCAPE2.0".split("").map((c) => c.charCodeAt(0)), 3, 1, n & 255, n >> 8, 0]));
+  }
+  for (let f = 0; f < frames.length; f++) {
+    if (onFrame) await onFrame(f);
+    const keys = global || pick(counts[f]), bits = global ? gBits : bitsFor(keys.length);
+    const lookup = new Map(keys.map((k, j) => [k, j + 1]));
+    const near = (k) => {
+      const r = (k >> 16) & 255, g = (k >> 8) & 255, b = k & 255;
+      let best = 0, bd = Infinity;
+      keys.forEach((c, j) => {
+        const dr = r - ((c >> 16) & 255), dg = g - ((c >> 8) & 255), db = b - (c & 255), dd = dr * dr + dg * dg + db * db;
+        if (dd < bd) { bd = dd; best = j + 1; }
+      });
+      return best;
+    };
+    const d = frames[f].data, idx = new Uint8Array(W * H);
+    for (let i = 0; i < idx.length; i++) {
+      if (d[i * 4 + 3] < 128) continue;
+      const k = (d[i * 4] << 16) | (d[i * 4 + 1] << 8) | d[i * 4 + 2];
+      let v = lookup.get(k);
+      if (v === undefined) { v = near(k); lookup.set(k, v); }
+      idx[i] = v;
+    }
+    const cs = Math.min(65535, Math.max(0, Math.round((delays[f] ?? 100) / 10)));
+    parts.push(Uint8Array.from([0x21, 0xf9, 4, (2 << 2) | 1, cs & 255, cs >> 8, 0, 0]));          // restore-to-background, transparent index 0
+    parts.push(Uint8Array.from([0x2c, 0, 0, 0, 0, W & 255, W >> 8, H & 255, H >> 8, global ? 0 : 0x80 | (bits - 1)]));
+    if (!global) parts.push(table(keys, bits));
+    parts.push(lzwEncode(idx, bits));
+  }
+  parts.push(Uint8Array.from([0x3b]));
+  return { blob: new Blob(parts, { type: "image/gif" }), lossy };
+}
+
+function canvasWebp(imageData) {
+  const c = document.createElement("canvas");
+  c.width = imageData.width; c.height = imageData.height;
+  c.getContext("2d").putImageData(imageData, 0, 0);
+  return new Promise((res) => c.toBlob(res, "image/webp", 1));
+}
+
+async function sameAsFrame(blob, frame) {
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  const c = document.createElement("canvas");
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0);
+  const a = ctx.getImageData(0, 0, c.width, c.height).data, b = frame.data;
+  if (c.width !== frame.width || c.height !== frame.height) return false;
+  for (let i = 0; i < b.length; i += 4) {
+    const ca = a[i + 3] >= 128, cb = b[i + 3] >= 128;
+    if (ca !== cb) return false;
+    if (cb && (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2])) return false;
+  }
+  return true;
+}
+
+async function encodeWebp(frames, delays, loops, onFrame) {
+  const W = frames[0].width, H = frames[0].height, chunks = [];
+  const u24 = (v) => [v & 255, (v >> 8) & 255, (v >> 16) & 255];
+  const u32 = (v) => [...u24(v), (v >> 24) & 255];
+  const tag = (t) => [...t].map((ch) => ch.charCodeAt(0));
+  for (let f = 0; f < frames.length; f++) {
+    if (onFrame) await onFrame(f);
+    const still = await canvasWebp(frames[f]);
+    if (!still || still.type !== "image/webp") return null;
+    const bytes = new Uint8Array(await still.arrayBuffer());
+    if (String.fromCharCode(...bytes.subarray(0, 4)) !== "RIFF" || String.fromCharCode(...bytes.subarray(8, 12)) !== "WEBP") return null;
+    if (!(await sameAsFrame(still, frames[f]))) return null;
+    let bitstream = null;
+    for (let pos = 12; pos + 8 <= bytes.length; ) {
+      const cc = String.fromCharCode(...bytes.subarray(pos, pos + 4));
+      const sz = bytes[pos + 4] | (bytes[pos + 5] << 8) | (bytes[pos + 6] << 16) | (bytes[pos + 7] << 24);
+      const end = pos + 8 + sz + (sz & 1);
+      if (cc === "VP8L") { bitstream = bytes.subarray(pos, Math.min(end, bytes.length)); break; }
+      if (cc === "VP8 ") return null;
+      pos = end;
+    }
+    if (!bitstream) return null;
+    const ms = Math.min(0xffffff, Math.max(0, delays[f] ?? 100));
+    const head = Uint8Array.from([...u24(0), ...u24(0), ...u24(W - 1), ...u24(H - 1), ...u24(ms), 2]);
+    const body = new Uint8Array(head.length + bitstream.length);
+    body.set(head); body.set(bitstream, head.length);
+    chunks.push(Uint8Array.from([...tag("ANMF"), ...u32(body.length)]), body);
+    if (body.length & 1) chunks.push(Uint8Array.of(0));
+  }
+  const loopN = loops === Infinity ? 0 : loops > 0 ? Math.min(65535, loops + 1) : 1;
+  const vp8x = Uint8Array.from([...tag("VP8X"), ...u32(10), 0x12, 0, 0, 0, ...u24(W - 1), ...u24(H - 1)]);
+  const anim = Uint8Array.from([...tag("ANIM"), ...u32(6), 0, 0, 0, 0, loopN & 255, loopN >> 8]);
+  const size = 4 + vp8x.length + anim.length + chunks.reduce((a, x) => a + x.length, 0);
+  const riffHead = Uint8Array.from([...tag("RIFF"), ...u32(size), ...tag("WEBP")]);
+  return { blob: new Blob([riffHead, vp8x, anim, ...chunks], { type: "image/webp" }), lossy: false };
+}
+
+async function compileJob(job, run) {
+  job.compiled = null;
+  job.compileNote = "";
+  (job.urls || []).forEach((u) => URL.revokeObjectURL(u));
+  job.urls = [];
+  const fmt = job.fmt, many = job.frames.length > 1;
+  for (const w of ["A", "B"]) job.q(".pv" + w).classList.add("hide");
+  if (!many || !fmt) return;
+  const out = {};
+  let lossy = false;
+  for (const w of ["A", "B"]) {
+    const onFrame = async (f) => {
+      jstatus(job, `Building the animated ${fmt.toUpperCase()} for ${w}... frame ${f + 1} of ${job.frames.length}`);
+      await tick();
+    };
+    const r = fmt === "gif"
+      ? await encodeGif(job.results[w], job.delays, job.loops, onFrame)
+      : await encodeWebp(job.results[w], job.delays, job.loops, onFrame);
+    if (job.removed || job.run !== run) return;
+    if (!r) { job.compileNote = `This browser could not build a lossless animated ${fmt.toUpperCase()}, so only the frames ZIP is offered.`; return; }
+    out[w] = r;
+    lossy = lossy || r.lossy;
+  }
+  job.compiled = out;
+  job.compileNote = lossy ? "At least one frame had more than 255 colours, so its rarest colours were merged into the nearest kept ones in the GIF. The frames ZIP is exact." : "";
+  const img0 = job.frames[0], scale = displayScale(img0);
+  for (const w of ["A", "B"]) {
+    const url = URL.createObjectURL(out[w].blob);
+    job.urls.push(url);
+    const im = job.q(".pvImg" + w);
+    im.src = url;
+    im.style.width = img0.width * scale + "px";
+    job.q(".pvLabel" + w).textContent =
+      `Compiled ${fmt.toUpperCase()} preview: ${job.frames.length} frames, ${(out[w].blob.size / 1024).toFixed(0)} KB. This is the file that downloads.`;
+    job.q(".pv" + w).classList.remove("hide");
+  }
+}
+
+function updateButtons(job) {
+  const many = job.frames && job.frames.length > 1, fmt = job.compiled ? job.fmt : null, L = fmt ? fmt.toUpperCase() : "";
+  for (const w of ["A", "B"]) {
+    job.q(".dl" + w).textContent = fmt ? `Download ${w} (${L})` : many ? `Download ${w} frames (ZIP)` : `Download ${w} (PNG)`;
+    job.q(".dl" + w + "z").classList.toggle("hide", !fmt);
+  }
+  job.q(".dlPick").textContent = fmt ? `Download my preferred one (${L})` : many ? "Download my preferred one (ZIP)" : "Download my preferred one";
+  job.q(".dlPickZ").classList.toggle("hide", !fmt);
+  job.q(".dlPickZ").disabled = !job.choice;
+}
+
 /* ------------------------------------------------------------------ downloads
-   A single image downloads as one PNG. An animation downloads as a ZIP of one PNG per frame (a
+   A single image downloads as one PNG. An animated GIF or WebP downloads as the same format, and any animation can also download as a ZIP of one PNG per frame (a
    plain "stored" ZIP, built here, so no library is needed), or one frame at a time from its tile. */
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -855,7 +1092,17 @@ function saveBlob(blob, filename) {
 async function download(job, which) {
   const frames = job.results && job.results[which];
   if (!frames) return;
+  if (job.compiled && job.compiled[which]) {
+    saveBlob(job.compiled[which].blob, `${job.name}_${SUFFIX[which]}.${job.fmt}`);
+    return;
+  }
   if (frames.length === 1) { saveBlob(await pngBlob(frames[0]), `${job.name}_${SUFFIX[which]}.png`); return; }
+  await downloadFrames(job, which);
+}
+
+async function downloadFrames(job, which) {
+  const frames = job.results && job.results[which];
+  if (!frames) return;
   const files = [];
   for (let i = 0; i < frames.length; i++) {
     files.push({ name: frameName(job, which, i, frames.length), data: new Uint8Array(await (await pngBlob(frames[i])).arrayBuffer()) });
