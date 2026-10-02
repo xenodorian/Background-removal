@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cutout Compare</title>
+<style>
+:root {
+  --bg: #f6f5f1;
+  --panel: #ffffff;
+  --ink: #1d1c19;
+  --muted: #6b6860;
+  --line: #dcd9d0;
+  --accent: #2f6b4f;
+  --accent-ink: #ffffff;
+  --pick: #2f6b4f;
+  --warn: #8a5a00;
+  --check-a: #e9e7e0;
+  --check-b: #cfccc2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14130f;
+    --panel: #1d1c18;
+    --ink: #ece9df;
+    --muted: #a09c90;
+    --line: #35332c;
+    --accent: #6fc79a;
+    --accent-ink: #0f1a14;
+    --pick: #6fc79a;
+    --warn: #e0b35a;
+    --check-a: #2a2924;
+    --check-b: #34322c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14130f;
+  --panel: #1d1c18;
+  --ink: #ece9df;
+  --muted: #a09c90;
+  --line: #35332c;
+  --accent: #6fc79a;
+  --accent-ink: #0f1a14;
+  --pick: #6fc79a;
+  --warn: #e0b35a;
+  --check-a: #2a2924;
+  --check-b: #34322c;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.1rem; margin: 0 0 8px; }
+h3 { font-size: 1rem; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+.sub { color: var(--muted); margin-bottom: 20px; }
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+#drop {
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  padding: 28px 16px;
+  text-align: center;
+  background: var(--panel);
+  cursor: pointer;
+}
+#drop.over { border-color: var(--accent); }
+#drop strong { display: block; font-size: 1.05rem; }
+#drop span { color: var(--muted); font-size: .92rem; }
+button {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 40px;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, #drop:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.row.between { justify-content: space-between; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+.checker {
+  background-color: var(--check-a);
+  background-image:
+    linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%),
+    linear-gradient(45deg, var(--check-b) 25%, transparent 25%, transparent 75%, var(--check-b) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  min-height: 120px;
+}
+.checker canvas { max-width: 100%; height: auto; image-rendering: pixelated; display: block; }
+.card { border: 2px solid var(--line); border-radius: 12px; padding: 14px; background: var(--panel); }
+.card.chosen { border-color: var(--pick); }
+.card label.pick { display: flex; gap: 8px; align-items: center; font-weight: 600; margin: 10px 0 8px; cursor: pointer; }
+.card input[type=radio] { width: 20px; height: 20px; accent-color: var(--pick); }
+.stat { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.chip {
+  display: inline-flex; gap: 8px; align-items: center;
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px 4px 8px; font-size: .9rem;
+}
+.chip .sw { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--line); }
+.chip small { color: var(--muted); }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; margin-top: 8px; }
+.settings label { display: block; font-size: .92rem; }
+.settings input[type=range] { width: 100%; }
+.note { color: var(--muted); font-size: .9rem; }
+.warn { color: var(--warn); }
+details summary { cursor: pointer; font-weight: 600; }
+.gstatus { min-height: 1.5em; margin: 8px 0; }
+.hide { display: none !important; }
+.job .jhead h2 { margin: 0; word-break: break-all; }
+.job .jstatus { min-height: 1.5em; margin: 6px 0 10px; }
+.job .block { margin-bottom: 16px; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+.fcell { display: flex; flex-direction: column; gap: 4px; }
+.fcell .checker { min-height: 0; padding: 4px; }
+.fcell small { color: var(--muted); font-size: .78rem; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.fcell button { min-height: 28px; padding: 2px 8px; font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cutout Compare</h1>
+  <p class="sub">Drop in one or more images that each have a one-colour background. Two methods remove the background from each and give you a transparent PNG. Animated images are split into every one of their frames in the output, and the colours you choose apply to all of them. For every image, pick the result you like and download it. Nothing leaves your device.</p>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Choose images or drop them here">
+    <strong>Choose images, drop them here, or paste one</strong>
+    <span>PNG, GIF, WebP or JPEG. You can pick several at once. An animated GIF is split into all of its frames.</span>
+    <input id="file" type="file" accept="image/*" multiple class="hide">
+  </div>
+  <div class="row between">
+    <p id="gstatus" class="gstatus" role="status" aria-live="polite"></p>
+    <button id="clearAll" type="button" class="hide">Remove all images</button>
+  </div>
+
+  <div id="jobs"></div>
+</main>
+
+<template id="jobTpl">
+  <section class="job panel">
+    <div class="row between jhead">
+      <h2 class="jname"></h2>
+      <div class="row">
+        <span class="note jdims"></span>
+        <button class="jremove" type="button">Remove</button>
+      </div>
+    </div>
+    <p class="jstatus" role="status" aria-live="polite"></p>
+
+    <div class="jbody hide">
+      <div class="block">
+        <h3>Colours to remove</h3>
+        <p class="note">Found automatically from the image. Untick any that are part of the character, or click the original picture to add a colour. Your choices apply to every frame of an animation.</p>
+        <div class="chips jchips"></div>
+        <div class="grid2">
+          <div>
+            <p class="note" style="margin-bottom:4px">Original (first frame shown. Click to add a colour.)</p>
+            <div class="checker"><canvas class="jorig"></canvas></div>
+          </div>
+          <div>
+            <details>
+              <summary>Settings</summary>
+              <div class="settings">
+                <label>Method A tolerance: <b class="tolAv"></b>
+                  <input class="tolA" type="range" min="0" max="60" step="1">
+                  <span class="note">0 = exact colours. Above 0, only backdrop that touches the image edge is removed.</span>
+                </label>
+                <label>Method B tolerance: <b class="tolBv"></b>
+                  <input class="tolB" type="range" min="0" max="60" step="1">
+                  <span class="note">How far a pixel's colour may differ and still count as backdrop.</span>
+                </label>
+              </div>
+            </details>
+            <p class="note jmode" style="margin-top:12px"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2 block">
+        <div class="card cardA">
+          <h3>A. Exact colour match</h3>
+          <p class="note">From the spriteedge tool. Removes every pixel that matches a chosen colour, including backdrop pockets enclosed by the character (a tail curl, the gap between legs).</p>
+          <div class="outA"></div>
+          <p class="stat statA"></p>
+          <label class="pick"><input type="radio" class="prefA" value="A"> I prefer this one</label>
+          <button class="dlA" type="button">Download A (PNG)</button>
+        </div>
+        <div class="card cardB">
+          <h3>B. Edge flood fill</h3>
+          <p class="note">From the earlier one-off script. Starts at the image edges and spreads inward through backdrop-like pixels, so pockets the edge cannot reach stay.</p>
+          <div class="outB"></div>
+          <p class="stat statB"></p>
+          <label class="pick"><input type="radio" class="prefB" value="B"> I prefer this one</label>
+          <button class="dlB" type="button">Download B (PNG)</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="dlPick primary" type="button" disabled>Download my preferred one</button>
+        <span class="note pickNote">Choose A or B first.</span>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ helpers */
+const $ = (s) => document.querySelector(s);
+function keyAt(d, i) { const o = i * 4; return (d[o] << 16) | (d[o + 1] << 8) | d[o + 2]; }
+function hex(r, g, b) { return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join(""); }
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+/* ------------------------------------------------------------------ loading */
+async function decode(file) {
+  let bmp;
+  try {
+    bmp = await createImageBitmap(file, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  } catch (e) {
+    bmp = await createImageBitmap(file);
+  }
+  const c = document.createElement("canvas");
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0);
+  return ctx.getImageData(0, 0, c.width, c.height);
+}
+
+/* ------------------------------------------------------------------ animated images
+   Animated GIF / APNG / WebP are split into every frame, each one a full, fully composited picture.
+   The browser's own ImageDecoder is used where it exists. Otherwise GIFs go through the small decoder
+   below. Colours are detected from the first frame and then applied to every frame. A cap on the total
+   pixel count keeps very long or very large animations from exhausting memory. */
+const MAX_FRAME_PIXELS = 24e6;
+function frameLimit(w, h) { return Math.max(1, Math.floor(MAX_FRAME_PIXELS / (w * h))); }
+
+function decodeGif(buf) {
+  const d = new Uint8Array(buf);
+  if (!/^GIF8[79]a$/.test(String.fromCharCode(...d.subarray(0, 6)))) throw new Error("not a GIF");
+  let p = 6;
+  const W = d[p] | (d[p + 1] << 8), H = d[p + 2] | (d[p + 3] << 8), flags = d[p + 4];
+  p += 7;
+  let gct = null;
+  if (flags & 0x80) { const n = 2 << (flags & 7); gct = d.subarray(p, p + 3 * n); p += 3 * n; }
+  const limit = frameLimit(W, H);
+  const frames = [];
+  let total = 0, gce = null, last = null, saved = null;
+  const canvas = new Uint8ClampedArray(W * H * 4);
+  const skipBlocks = () => { while (d[p]) p += d[p] + 1; p++; };
+  while (p < d.length) {
+    const b = d[p++];
+    if (b === 0x3b) break;
+    if (b === 0x21) {
+      const label = d[p++];
+      if (label === 0xf9) { const f = d[p + 1]; gce = { disposal: (f >> 2) & 7, trans: (f & 1) ? d[p + 4] : -1 }; }
+      skipBlocks();
+    } else if (b === 0x2c) {
+      const x0 = d[p] | (d[p + 1] << 8), y0 = d[p + 2] | (d[p + 3] << 8);
+      const w = d[p + 4] | (d[p + 5] << 8), h = d[p + 6] | (d[p + 7] << 8), f = d[p + 8];
+      p += 9;
+      let ct = gct;
+      if (f & 0x80) { const n = 2 << (f & 7); ct = d.subarray(p, p + 3 * n); p += 3 * n; }
+      const minCode = d[p++];
+      total++;
+      if (frames.length >= limit) { skipBlocks(); gce = null; continue; }
+      const chunks = []; let len = 0;
+      while (d[p]) { chunks.push(d.subarray(p + 1, p + 1 + d[p])); len += d[p]; p += d[p] + 1; }
+      p++;
+      const data = new Uint8Array(len); let o = 0;
+      for (const c of chunks) { data.set(c, o); o += c.length; }
+      const idx = lzwDecode(data, minCode, w * h);
+      if (last) {                                          // apply the previous frame's disposal first
+        if (last.disposal === 2) {
+          for (let y = last.y; y < Math.min(H, last.y + last.h); y++)
+            for (let x = last.x; x < Math.min(W, last.x + last.w); x++) canvas.fill(0, (y * W + x) * 4, (y * W + x) * 4 + 4);
+        } else if (last.disposal === 3 && saved) canvas.set(saved);
+      }
+      const disposal = gce ? gce.disposal : 0, trans = gce ? gce.trans : -1;
+      saved = disposal === 3 ? canvas.slice() : null;
+      const rows = new Int32Array(h);
+      if (f & 0x40) {
+        let r = 0;
+        for (const [start, step] of [[0, 8], [4, 8], [2, 4], [1, 2]]) for (let y = start; y < h; y += step) rows[r++] = y;
+      } else for (let y = 0; y < h; y++) rows[y] = y;
+      for (let r = 0; r < h; r++) {
+        const yy = y0 + rows[r];
+        if (yy >= H) continue;
+        for (let x = 0; x < w; x++) {
+          const xx = x0 + x, ci = idx[r * w + x];
+          if (xx >= W || ci === trans || !ct || ci * 3 + 2 >= ct.length) continue;
+          const q = (yy * W + xx) * 4;
+          canvas[q] = ct[ci * 3]; canvas[q + 1] = ct[ci * 3 + 1]; canvas[q + 2] = ct[ci * 3 + 2]; canvas[q + 3] = 255;
+        }
+      }
+      frames.push(new ImageData(canvas.slice(), W, H));
+      last = { disposal, x: x0, y: y0, w, h };
+      gce = null;
+    } else break;
+  }
+  return { frames, total };
+}
+
+function lzwDecode(data, minCode, npix) {
+  const clear = 1 << minCode, eoi = clear + 1;
+  const prefix = new Int16Array(4096), suffix = new Uint8Array(4096), stack = new Uint8Array(4097);
+  for (let i = 0; i < clear; i++) suffix[i] = i;
+  const out = new Uint8Array(npix);
+  let codeSize = minCode + 1, next = eoi + 1, bits = 0, nbits = 0, pos = 0, prev = -1, first = 0, op = 0;
+  while (op < npix) {
+    while (nbits < codeSize) { if (pos >= data.length) return out; bits |= data[pos++] << nbits; nbits += 8; }
+    let code = bits & ((1 << codeSize) - 1);
+    bits >>= codeSize; nbits -= codeSize;
+    if (code === clear) { codeSize = minCode + 1; next = eoi + 1; prev = -1; continue; }
+    if (code === eoi) break;
+    if (prev === -1) { out[op++] = suffix[code]; prev = code; first = code; continue; }
+    const inCode = code;
+    let sp = 0;
+    if (code >= next) { stack[sp++] = first; code = prev; }
+    while (code >= clear) { stack[sp++] = suffix[code]; code = prefix[code]; }
+    first = suffix[code];
+    stack[sp++] = first;
+    if (next < 4096) {
+      prefix[next] = prev; suffix[next] = first; next++;
+      if (next === (1 << codeSize) && codeSize < 12) codeSize++;
+    }
+    prev = inCode;
+    while (sp > 0 && op < npix) out[op++] = stack[--sp];
+  }
+  return out;
+}
+
+async function looksAnimated(file) {
+  const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+  const txt = String.fromCharCode(...head);
+  return file.type === "image/png" ? txt.includes("acTL") : txt.includes("ANIM");
+}
+
+async function decodeFrames(file) {
+  const out = { frames: null, capped: 0, note: "" };
+  const type = file.type || "";
+  const hasDecoder = typeof ImageDecoder !== "undefined" && !/[?&]decoder=off/.test(location.search);
+  if (hasDecoder && /^image\/(gif|webp|png|avif|apng)$/.test(type)) {
+    try {
+      if (await ImageDecoder.isTypeSupported(type)) {
+        const dec = new ImageDecoder({ data: await file.arrayBuffer(), type, colorSpaceConversion: "none", premultiplyAlpha: "none" });
+        await dec.tracks.ready;
+        const total = dec.tracks.selectedTrack.frameCount;
+        if (total > 1) {
+          const c = document.createElement("canvas");
+          let ctx = null, limit = Infinity;
+          const frames = [];
+          for (let i = 0; i < total && i < limit; i++) {
+            const { image } = await dec.decode({ frameIndex: i });
+            const w = image.displayWidth, h = image.displayHeight;
+            if (!ctx) { c.width = w; c.height = h; ctx = c.getContext("2d", { willReadFrequently: true }); limit = frameLimit(w, h); }
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(image, 0, 0);
+            frames.push(ctx.getImageData(0, 0, w, h));
+            image.close();
+          }
+          dec.close();
+          out.frames = frames;
+          out.capped = total > frames.length ? total : 0;
+          return out;
+        }
+        dec.close();
+      }
+    } catch (e) { /* fall back below */ }
+  }
+  if (type === "image/gif" || /\.gif$/i.test(file.name || "")) {
+    try {
+      const g = decodeGif(await file.arrayBuffer());
+      if (g.frames.length > 1) { out.frames = g.frames; out.capped = g.total > g.frames.length ? g.total : 0; return out; }
+    } catch (e) { /* treat as a still image below */ }
+  }
+  out.frames = [await decode(file)];
+  if (!hasDecoder && /^image\/(png|webp)$/.test(type) && await looksAnimated(file)) {
+    out.note = "This looks like an animated " + (type === "image/png" ? "PNG" : "WebP") + ", and this browser cannot split it into frames, so only the first frame is used. Chrome and Edge can split it.";
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ colour detection
+   Port of spriteedge.suggest_outside(): a flat colour whose largest region touches the image edge is
+   a "backdrop"; a flat neutral gray region that sits against the backdrop is "shadow-like". The
+   minimum pixel count scales with the image so small sprites work. Over 3000 distinct colours the
+   image is treated as photo-like (JPEG, blurred) and the four corner colours are used instead,
+   which is spriteedge's own default when no colours are named. */
+function cornerColors(img) {
+  const { width: w, height: h, data: d } = img;
+  const seen = new Map();
+  for (const i of [0, w - 1, (h - 1) * w, h * w - 1]) {
+    if (d[i * 4 + 3] < 128) continue;
+    seen.set(keyAt(d, i), [d[i * 4], d[i * 4 + 1], d[i * 4 + 2]]);
+  }
+  return [...seen.values()].map(([r, g, b]) => ({ r, g, b, kind: "corner" }));
+}
+
+function detectColors(img) {
+  const { width: w, height: h, data: d } = img;
+  const n = w * h;
+  const counts = new Map();
+  let photo = false;
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] < 128) continue;
+    const k = keyAt(d, i);
+    counts.set(k, (counts.get(k) || 0) + 1);
+    if (counts.size > 3000) { photo = true; break; }
+  }
+  if (photo) return { photo: true, colors: cornerColors(img) };
+
+  const minPx = Math.max(16, Math.round(n * 0.0008));
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 60).filter((e) => e[1] >= minPx);
+  const byKey = new Map(top.map((e) => [e[0], []]));
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] < 128) continue;
+    const l = byKey.get(keyAt(d, i));
+    if (l) l.push(i);
+  }
+  const lab = new Uint8Array(n);                      // 0 = unvisited
+  const cand = [];
+  for (const [k, count] of top) {
+    let best = null;
+    for (const start of byKey.get(k)) {
+      if (lab[start]) continue;
+      const region = [start]; lab[start] = 1;
+      let edge = false;
+      for (let s = 0; s < region.length; s++) {
+        const i = region[s], x = i % w, y = (i / w) | 0;
+        if (x === 0 || y === 0 || x === w - 1 || y === h - 1) edge = true;
+        const nb = [];
+        if (x > 0) nb.push(i - 1);
+        if (x < w - 1) nb.push(i + 1);
+        if (y > 0) nb.push(i - w);
+        if (y < h - 1) nb.push(i + w);
+        for (const j of nb) {
+          if (!lab[j] && d[j * 4 + 3] >= 128 && keyAt(d, j) === k) { lab[j] = 1; region.push(j); }
+        }
+      }
+      if (!best || region.length > best.region.length) best = { region, edge };
+    }
+    if (!best) continue;
+    const r = (k >> 16) & 255, g = (k >> 8) & 255, b = k & 255;
+    cand.push({ r, g, b, count, big: best.region, edge: best.edge, neutral: r === g && g === b });
+  }
+  const backUnion = new Uint8Array(n);
+  for (const c of cand) {
+    if (c.edge && c.big.length >= 0.05 * n) { c.kind = "backdrop"; for (const i of c.big) backUnion[i] = 1; }
+  }
+  const out = [];
+  for (const c of cand) {
+    if (!c.kind) {
+      if (!c.neutral) continue;
+      let near = false;
+      for (const i of c.big) {
+        const x = i % w, y = (i / w) | 0;
+        if ((x > 0 && backUnion[i - 1]) || (x < w - 1 && backUnion[i + 1]) ||
+            (y > 0 && backUnion[i - w]) || (y < h - 1 && backUnion[i + w])) { near = true; break; }
+      }
+      if (!near) continue;
+      c.kind = "shadow-like";
+    }
+    out.push(c);
+  }
+  out.sort((a, b) => (a.kind !== "backdrop") - (b.kind !== "backdrop") || b.count - a.count);
+  return { photo: false, colors: out.slice(0, 12).map(({ r, g, b, kind, count }) => ({ r, g, b, kind, count })) };
+}
+
+/* ------------------------------------------------------------------ method A: exact colour match
+   Port of spriteedge.find_border() as far as the sprite mask goes: outside = pixels that match a named
+   colour (exactly, or within a tolerance) plus transparent pixels. With a tolerance above 0, only
+   outside regions that touch the image edge count. Sprite = everything else. Cutout keeps the
+   original pixels and sets the outside to alpha 0. */
+function matcher(colors, tol) {
+  const t2 = tol * tol;
+  const cs = colors.map((c) => [c.r, c.g, c.b]);
+  return (d, i) => {
+    const o = i * 4, r = d[o], g = d[o + 1], b = d[o + 2];
+    for (const c of cs) {
+      if (tol > 0) {
+        const dr = r - c[0], dg = g - c[1], db = b - c[2];
+        if (dr * dr + dg * dg + db * db <= t2) return true;
+      } else if (r === c[0] && g === c[1] && b === c[2]) return true;
+    }
+    return false;
+  };
+}
+
+function edgeConnected(mask, w, h) {
+  const keep = new Uint8Array(mask.length);
+  const stack = [];
+  const push = (i) => { if (mask[i] && !keep[i]) { keep[i] = 1; stack.push(i); } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (stack.length) {
+    const i = stack.pop(), x = i % w, y = (i / w) | 0;
+    if (x > 0) push(i - 1);
+    if (x < w - 1) push(i + 1);
+    if (y > 0) push(i - w);
+    if (y < h - 1) push(i + w);
+  }
+  return keep;
+}
+
+function methodA(img, colors, tol) {
+  const { width: w, height: h, data: d } = img;
+  const n = w * h, hit = matcher(colors, tol);
+  let outside = new Uint8Array(n);
+  for (let i = 0; i < n; i++) outside[i] = d[i * 4 + 3] < 128 || hit(d, i) ? 1 : 0;
+  if (tol > 0) outside = edgeConnected(outside, w, h);
+  return outside;
+}
+
+/* ------------------------------------------------------------------ method B: edge flood fill
+   The earlier one-off script: seed every edge pixel, spread 4-way, and only keep spreading through
+   pixels that look like backdrop; everything reached becomes transparent. The original used a rule
+   tuned by eye for one picture (blue-dominant or very dark). Here "looks like backdrop" means within a
+   tolerance of one of the chosen colours, so it works on any one-colour background. */
+function methodB(img, colors, tol) {
+  const { width: w, height: h, data: d } = img;
+  const n = w * h, hit = matcher(colors, tol);
+  const seen = new Uint8Array(n), outside = new Uint8Array(n), stack = [];
+  const push = (i) => { if (!seen[i]) { seen[i] = 1; stack.push(i); } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (stack.length) {
+    const i = stack.pop();
+    if (!(d[i * 4 + 3] < 128 || hit(d, i))) continue;
+    outside[i] = 1;
+    const x = i % w, y = (i / w) | 0;
+    if (x > 0) push(i - 1);
+    if (x < w - 1) push(i + 1);
+    if (y > 0) push(i - w);
+    if (y < h - 1) push(i + w);
+  }
+  for (let i = 0; i < n; i++) if (d[i * 4 + 3] < 128) outside[i] = 1;   // already-transparent pixels are always outside
+  return outside;
+}
+
+function cutout(img, outside) {
+  const out = new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
+  for (let i = 0; i < outside.length; i++) if (outside[i]) out.data[i * 4 + 3] = 0;
+  return out;
+}
+
+/* ------------------------------------------------------------------ drawing */
+function show(canvas, imageData, scale) {
+  canvas.width = imageData.width; canvas.height = imageData.height;
+  canvas.getContext("2d").putImageData(imageData, 0, 0);
+  canvas.style.width = imageData.width * scale + "px";
+}
+
+function displayScale(img) {
+  const longest = Math.max(img.width, img.height);
+  return Math.max(1, Math.floor(420 / longest));
+}
+
+/* ------------------------------------------------------------------ one block per image */
+const jobsEl = $("#jobs");
+const jobs = new Set();
+let jobSeq = 0;
+
+function newJob(file) {
+  const node = $("#jobTpl").content.firstElementChild.cloneNode(true);
+  const job = {
+    id: ++jobSeq, file, node, img: null, frames: null, run: 0, colors: [], choice: null, results: null, timer: 0,
+    hasAlpha: false, noFlat: false, removed: false,
+    name: (file.name || "image").replace(/\.[^.]+$/, "") || "image",
+  };
+  job.q = (sel) => node.querySelector(sel);
+  job.q(".jname").textContent = file.name || "Pasted image";
+  job.q(".prefA").name = job.q(".prefB").name = "pref" + job.id;
+  job.q(".jremove").addEventListener("click", () => removeJob(job));
+  job.q(".tolA").addEventListener("input", () => schedule(job));
+  job.q(".tolB").addEventListener("input", () => schedule(job));
+  job.q(".prefA").addEventListener("change", () => { job.choice = "A"; updateChoice(job); });
+  job.q(".prefB").addEventListener("change", () => { job.choice = "B"; updateChoice(job); });
+  job.q(".dlA").addEventListener("click", () => download(job, "A"));
+  job.q(".dlB").addEventListener("click", () => download(job, "B"));
+  job.q(".dlPick").addEventListener("click", () => job.choice && download(job, job.choice));
+  job.q(".jorig").addEventListener("click", (e) => addColorFromClick(job, e));
+  jobs.add(job);
+  jobsEl.append(node);
+  jstatus(job, "Waiting...");
+  refreshGlobal();
+  return job;
+}
+
+function removeJob(job) {
+  clearTimeout(job.timer);
+  job.removed = true;
+  job.node.remove();
+  jobs.delete(job);
+  refreshGlobal();
+}
+
+function jstatus(job, msg, warn) {
+  const s = job.q(".jstatus");
+  s.textContent = msg || "";
+  s.className = "jstatus" + (warn ? " warn" : "");
+}
+
+function renderChips(job) {
+  const box = job.q(".jchips");
+  box.textContent = "";
+  job.colors.forEach((c) => {
+    const lab = document.createElement("label");
+    lab.className = "chip";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = c.on;
+    cb.addEventListener("change", () => { c.on = cb.checked; schedule(job); });
+    const sw = document.createElement("span");
+    sw.className = "sw"; sw.style.background = hex(c.r, c.g, c.b);
+    const t = document.createElement("span");
+    t.textContent = hex(c.r, c.g, c.b);
+    const k = document.createElement("small");
+    k.textContent = c.kind === "backdrop" ? "background" : c.kind === "shadow-like" ? "possible shadow" : c.kind === "corner" ? "corner colour" : "added";
+    lab.append(cb, sw, t, k);
+    box.append(lab);
+  });
+  if (!job.colors.length) {
+    const p = document.createElement("span");
+    p.className = "note";
+    p.textContent = job.hasAlpha ? "No colours needed: the image is already transparent." : "No flat background colour found. Click the picture to choose one.";
+    box.append(p);
+  }
+}
+
+function addColorFromClick(job, e) {
+  if (!job.img) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const x = Math.min(job.img.width - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * job.img.width)));
+  const y = Math.min(job.img.height - 1, Math.max(0, Math.floor((e.clientY - r.top) / r.height * job.img.height)));
+  const o = (y * job.img.width + x) * 4, d = job.img.data;
+  if (d[o + 3] < 128) return;
+  const same = job.colors.find((c) => c.r === d[o] && c.g === d[o + 1] && c.b === d[o + 2]);
+  if (same) same.on = true;
+  else job.colors.push({ r: d[o], g: d[o + 1], b: d[o + 2], kind: "added", on: true });
+  renderChips(job);
+  schedule(job);
+}
+
+function updateChoice(job) {
+  const c = job.choice;
+  job.q(".cardA").classList.toggle("chosen", c === "A");
+  job.q(".cardB").classList.toggle("chosen", c === "B");
+  job.q(".dlPick").disabled = !c;
+  job.q(".pickNote").textContent = c ? `You picked ${c === "A" ? "A, exact colour match" : "B, edge flood fill"}.` : "Choose A or B first.";
+}
+
+function schedule(job) { clearTimeout(job.timer); job.timer = setTimeout(() => processJob(job), 60); }
+
+function renderFrames(job, which) {
+  const box = job.q(".out" + which), frames = job.results[which];
+  box.textContent = "";
+  if (frames.length === 1) {
+    const wrap = document.createElement("div");
+    wrap.className = "checker";
+    const cv = document.createElement("canvas");
+    show(cv, frames[0], displayScale(frames[0]));
+    wrap.append(cv); box.append(wrap);
+    return;
+  }
+  const grid = document.createElement("div");
+  grid.className = "fgrid";
+  frames.forEach((fr, i) => {
+    const cell = document.createElement("div"); cell.className = "fcell";
+    const wrap = document.createElement("div"); wrap.className = "checker";
+    const cv = document.createElement("canvas");
+    show(cv, fr, 1); cv.style.width = "100%";
+    wrap.append(cv);
+    const row = document.createElement("small");
+    const lab = document.createElement("span"); lab.textContent = "Frame " + (i + 1);
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.textContent = "PNG";
+    btn.setAttribute("aria-label", `Download frame ${i + 1} of result ${which}`);
+    btn.addEventListener("click", () => downloadFrame(job, which, i));
+    row.append(lab, btn); cell.append(wrap, row); grid.append(cell);
+  });
+  box.append(grid);
+}
+
+async function processJob(job) {
+  const frames = job.frames;
+  if (!frames || job.removed) return;
+  const on = job.colors.filter((c) => c.on);
+  const tolA = +job.q(".tolA").value, tolB = +job.q(".tolB").value;
+  job.q(".tolAv").textContent = tolA === 0 ? "exact" : tolA;
+  job.q(".tolBv").textContent = tolB;
+  if (!on.length && !job.hasAlpha) {
+    jstatus(job, "Tick at least one colour to remove, or click the picture to choose one.", true);
+    return;
+  }
+  const run = ++job.run, many = frames.length > 1;
+  const A = [], B = [], fa = [], fb = [];
+  for (let f = 0; f < frames.length; f++) {
+    jstatus(job, many ? `Working... frame ${f + 1} of ${frames.length}` : "Working...");
+    await tick();
+    if (job.removed || job.run !== run) return;
+    const img = frames[f], n = img.width * img.height;
+    const oa = methodA(img, on, tolA), ob = methodB(img, on, tolB);
+    let ra = 0, rb = 0;
+    for (let i = 0; i < n; i++) { ra += oa[i]; rb += ob[i]; }
+    fa.push(ra / n); fb.push(rb / n);
+    A.push(cutout(img, oa)); B.push(cutout(img, ob));
+  }
+  job.results = { A, B };
+  renderFrames(job, "A");
+  renderFrames(job, "B");
+  const img0 = frames[0], n0 = img0.width * img0.height;
+  const pct = (v) => (100 * v).toFixed(1) + "%";
+  const stat = (arr) => many
+    ? `${frames.length} frames. On average ${pct(arr.reduce((x, y) => x + y, 0) / arr.length)} of each frame removed (${pct(Math.min(...arr))} to ${pct(Math.max(...arr))}).`
+    : `Removed ${Math.round(arr[0] * n0).toLocaleString()} pixels (${pct(arr[0])}). Kept ${(n0 - Math.round(arr[0] * n0)).toLocaleString()}.`;
+  job.q(".statA").textContent = stat(fa);
+  job.q(".statB").textContent = stat(fb);
+  job.q(".dlA").textContent = many ? "Download A frames (ZIP)" : "Download A (PNG)";
+  job.q(".dlB").textContent = many ? "Download B frames (ZIP)" : "Download B (PNG)";
+  job.q(".dlPick").textContent = many ? "Download my preferred one (ZIP)" : "Download my preferred one";
+  const warn = job.noFlat || !!job.capNote;
+  jstatus(job, `Done. ${img0.width} x ${img0.height} pixels` + (many ? `, ${frames.length} frames` : "") + "." +
+    (job.noFlat ? " Check the results closely." : ""), warn);
+}
+
+async function loadJob(job) {
+  if (job.removed) return;
+  jstatus(job, "Reading image...");
+  try {
+    const dec = await decodeFrames(job.file);
+    if (job.removed) return;
+    job.frames = dec.frames;
+    const img = job.img = dec.frames[0];
+    const many = dec.frames.length > 1;
+    if (img.width * img.height > 36e6) jstatus(job, "Large image: this may take a few seconds.", true);
+    const det = detectColors(img);
+    let clear = 0;
+    for (let i = 3; i < img.data.length; i += 4) if (img.data[i] < 128) clear++;
+    job.hasAlpha = clear > 0.01 * img.width * img.height;
+    let spread = 0;
+    for (const a of det.colors) for (const b of det.colors) {
+      spread = Math.max(spread, Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b));
+    }
+    job.noFlat = det.photo && spread > 40;
+    job.capNote = dec.capped ? `Only the first ${dec.frames.length} of ${dec.capped} frames are used, to keep memory in check.` : "";
+    job.colors = det.colors.map((c) => ({ ...c, on: true }));
+    job.q(".tolA").value = det.photo ? 14 : 0;
+    job.q(".tolB").value = det.photo ? 14 : 4;
+    let mode = det.photo
+      ? "This image has many distinct colours (a photo or JPEG), so exact matching is unreliable. Using the corner colours with a tolerance of 14." +
+        (job.noFlat ? " The four corners are different colours, so this image probably has no one-colour background and the results are unlikely to be good." : " Check the results closely.")
+      : det.colors.length
+        ? "Flat-colour image: backdrop colours were detected exactly."
+        : job.hasAlpha
+          ? "This image already has a transparent background, so there is nothing to remove. If it also has a colour backdrop, click the picture to choose that colour."
+          : "No flat background colour was found. Click the picture to choose the background colour.";
+    if (many) mode += ` This animation has ${dec.frames.length} frames. Colours are detected from the first frame and applied to every frame.`;
+    if (job.capNote) mode += " " + job.capNote;
+    if (dec.note) mode += " " + dec.note;
+    job.q(".jmode").textContent = mode;
+    job.q(".jdims").textContent = `${img.width} x ${img.height}` + (many ? `, ${dec.frames.length} frames` : "");
+    show(job.q(".jorig"), img, displayScale(img));
+    job.q(".jbody").classList.remove("hide");
+    updateChoice(job);
+    renderChips(job);
+    await processJob(job);
+  } catch (e) {
+    jstatus(job, "Could not read this file as an image.", true);
+  }
+}
+
+/* ------------------------------------------------------------------ downloads
+   A single image downloads as one PNG. An animation downloads as a ZIP of one PNG per frame (a
+   plain "stored" ZIP, built here, so no library is needed), or one frame at a time from its tile. */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  const now = new Date();
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true);
+    h.setUint32(18, size, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(h.buffer, name, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint16(10, 0, true); c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true);
+    c.setUint32(20, size, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true);
+    c.setUint32(42, offset, true);
+    central.push(c.buffer, name);
+    offset += 30 + name.length + size;
+  }
+  const centralSize = central.reduce((a, x) => a + x.byteLength, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, centralSize, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, e.buffer], { type: "application/zip" });
+}
+
+const SUFFIX = { A: "exact", B: "floodfill" };
+function frameName(job, which, i, n) {
+  const pad = Math.max(3, String(n).length);
+  return `${job.name}_${SUFFIX[which]}_${String(i + 1).padStart(pad, "0")}.png`;
+}
+function pngBlob(imageData) {
+  const c = document.createElement("canvas");
+  c.width = imageData.width; c.height = imageData.height;
+  c.getContext("2d").putImageData(imageData, 0, 0);
+  return new Promise((res) => c.toBlob(res, "image/png"));
+}
+function saveBlob(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+async function download(job, which) {
+  const frames = job.results && job.results[which];
+  if (!frames) return;
+  if (frames.length === 1) { saveBlob(await pngBlob(frames[0]), `${job.name}_${SUFFIX[which]}.png`); return; }
+  const files = [];
+  for (let i = 0; i < frames.length; i++) {
+    files.push({ name: frameName(job, which, i, frames.length), data: new Uint8Array(await (await pngBlob(frames[i])).arrayBuffer()) });
+  }
+  saveBlob(makeZip(files), `${job.name}_${SUFFIX[which]}_frames.zip`);
+}
+
+async function downloadFrame(job, which, i) {
+  const frames = job.results && job.results[which];
+  if (frames) saveBlob(await pngBlob(frames[i]), frameName(job, which, i, frames.length));
+}
+
+/* ------------------------------------------------------------------ queue and page-level wiring
+   Images are processed one after another so the page stays responsive with many files. */
+let queue = Promise.resolve();
+let pending = 0;
+
+function refreshGlobal() {
+  const g = $("#gstatus");
+  if (pending > 0) g.textContent = `Working on ${pending} image${pending === 1 ? "" : "s"}...`;
+  else g.textContent = jobs.size ? `${jobs.size} image${jobs.size === 1 ? "" : "s"} ready.` : "";
+  $("#clearAll").classList.toggle("hide", jobs.size === 0);
+}
+
+function addFiles(list) {
+  for (const file of [...list]) {
+    const job = newJob(file);
+    pending++;
+    refreshGlobal();
+    queue = queue.then(() => loadJob(job)).catch(() => {}).then(() => { pending--; refreshGlobal(); });
+  }
+}
+
+const drop = $("#drop"), fileInput = $("#file");
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+window.addEventListener("paste", (e) => {
+  const files = [...(e.clipboardData?.files || [])].filter((x) => x.type.startsWith("image/"));
+  if (files.length) addFiles(files);
+});
+$("#clearAll").addEventListener("click", () => { [...jobs].forEach(removeJob); });
+</script>
+</body>
+</html>
